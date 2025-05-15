@@ -191,7 +191,7 @@ const MainContent = () => {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <Package className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl font-bold text-gray-900">EstoqueSimples</h1>
+            <h1 className="text-xl font-bold text-gray-900">ESTOQUE FIELDS - BANCO CARREFOUR</h1>
           </div>
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="sm">
