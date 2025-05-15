@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { useInventory } from "@/context/InventoryContext";
 import { toast } from "sonner";
+import { Product } from "@/types/supabase";
 
 interface EditProductModalProps {
   product: Product;
@@ -34,6 +35,7 @@ const EditProductModal = ({ product, isOpen, onClose }: EditProductModalProps) =
     price: product.price.toString(),
     quantity: product.quantity.toString()
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Atualizar o formData quando o produto mudar
   useEffect(() => {
@@ -63,7 +65,7 @@ const EditProductModal = ({ product, isOpen, onClose }: EditProductModalProps) =
     setFormData(prev => ({ ...prev, category: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validação básica
@@ -86,17 +88,26 @@ const EditProductModal = ({ product, isOpen, onClose }: EditProductModalProps) =
       return;
     }
 
-    // Atualizar produto
-    updateProduct({
-      ...product,
-      name: formData.name,
-      category: formData.category,
-      price,
-      quantity
-    });
+    try {
+      setIsSubmitting(true);
+      
+      // Atualizar produto
+      await updateProduct({
+        ...product,
+        name: formData.name,
+        category: formData.category,
+        price,
+        quantity
+      });
 
-    toast.success("Produto atualizado com sucesso");
-    onClose();
+      toast.success("Produto atualizado com sucesso");
+      onClose();
+    } catch (error) {
+      console.error("Erro ao atualizar produto:", error);
+      toast.error("Não foi possível atualizar o produto");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -159,8 +170,12 @@ const EditProductModal = ({ product, isOpen, onClose }: EditProductModalProps) =
           </div>
           
           <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit">Salvar Alterações</Button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Salvando..." : "Salvar Alterações"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

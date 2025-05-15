@@ -1,20 +1,22 @@
 
 import { useState } from "react";
-import { Edit, Trash2, Package, PlusCircle, MinusCircle } from "lucide-react";
+import { Edit, Trash2, Package, PlusCircle, MinusCircle, RefreshCw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useInventory } from "@/context/InventoryContext";
 import EditProductModal from "./EditProductModal";
 import { toast } from "sonner";
+import { Product } from "@/types/supabase";
 
 interface ProductTableProps {
   searchQuery: string;
 }
 
 const ProductTable = ({ searchQuery }: ProductTableProps) => {
-  const { products, removeProduct, updateQuantity } = useInventory();
+  const { products, removeProduct, updateQuantity, refreshProducts, loading } = useInventory();
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Filtrar produtos com base na pesquisa
   const filteredProducts = products.filter(product => 
@@ -22,18 +24,43 @@ const ProductTable = ({ searchQuery }: ProductTableProps) => {
     product.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleRemove = (id: string) => {
-    removeProduct(id);
-    toast.success("Produto removido com sucesso");
+  const handleRemove = async (id: string) => {
+    try {
+      await removeProduct(id);
+      toast.success("Produto removido com sucesso");
+    } catch (error) {
+      console.error("Erro ao remover produto:", error);
+    }
   };
 
-  const handleIncrement = (id: string, currentQuantity: number) => {
-    updateQuantity(id, currentQuantity + 1);
+  const handleIncrement = async (id: string, currentQuantity: number) => {
+    try {
+      await updateQuantity(id, currentQuantity + 1);
+    } catch (error) {
+      console.error("Erro ao atualizar quantidade:", error);
+    }
   };
 
-  const handleDecrement = (id: string, currentQuantity: number) => {
+  const handleDecrement = async (id: string, currentQuantity: number) => {
     if (currentQuantity > 0) {
-      updateQuantity(id, currentQuantity - 1);
+      try {
+        await updateQuantity(id, currentQuantity - 1);
+      } catch (error) {
+        console.error("Erro ao atualizar quantidade:", error);
+      }
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshProducts();
+      toast.success("Dados atualizados");
+    } catch (error) {
+      console.error("Erro ao atualizar dados:", error);
+      toast.error("Erro ao atualizar dados");
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -49,6 +76,22 @@ const ProductTable = ({ searchQuery }: ProductTableProps) => {
 
   return (
     <>
+      <div className="flex justify-between items-center mb-4 px-4 py-2">
+        <h3 className="text-sm font-semibold text-gray-500">
+          {filteredProducts.length} {filteredProducts.length === 1 ? 'produto' : 'produtos'} encontrados
+        </h3>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="flex items-center gap-1"
+          onClick={handleRefresh}
+          disabled={isRefreshing || loading}
+        >
+          <RefreshCw className={`h-4 w-4 ${isRefreshing || loading ? 'animate-spin' : ''}`} />
+          {isRefreshing || loading ? 'Atualizando...' : 'Atualizar'}
+        </Button>
+      </div>
+      
       <Table>
         <TableHeader>
           <TableRow>
@@ -61,7 +104,16 @@ const ProductTable = ({ searchQuery }: ProductTableProps) => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredProducts.length === 0 ? (
+          {loading ? (
+            <TableRow>
+              <TableCell colSpan={6} className="text-center py-10">
+                <div className="flex flex-col items-center justify-center">
+                  <RefreshCw className="h-8 w-8 text-blue-600 animate-spin mb-2" />
+                  <p className="text-gray-500">Carregando produtos...</p>
+                </div>
+              </TableCell>
+            </TableRow>
+          ) : filteredProducts.length === 0 ? (
             <TableRow>
               <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                 <Package className="h-12 w-12 mx-auto text-gray-300 mb-2" />

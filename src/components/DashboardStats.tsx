@@ -4,13 +4,31 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useInventory } from "@/context/InventoryContext";
 
 const DashboardStats = () => {
-  const { products } = useInventory();
+  const { products, loading } = useInventory();
   
   // Calcular estatísticas
   const totalProducts = products.length;
   const totalValue = products.reduce((sum, product) => sum + (product.price * product.quantity), 0);
-  const lowStockCount = products.filter(product => product.quantity <= 5).length;
+  const lowStockCount = products.filter(product => product.quantity <= 5 && product.quantity > 0).length;
   const outOfStockCount = products.filter(product => product.quantity === 0).length;
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i} className="bg-white shadow-sm">
+            <CardContent className="p-6">
+              <div className="animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+                <div className="h-8 bg-gray-200 rounded w-1/4 mb-2"></div>
+                <div className="h-4 bg-gray-200 rounded w-3/4 mt-4"></div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -27,7 +45,7 @@ const DashboardStats = () => {
           </div>
           <div className="mt-2 text-sm text-gray-600">
             <TrendingUp className="inline h-4 w-4 mr-1 text-green-500" />
-            <span className="text-green-500 font-medium">12%</span> comparado ao mês passado
+            Visão geral do catálogo
           </div>
         </CardContent>
       </Card>
@@ -45,7 +63,7 @@ const DashboardStats = () => {
           </div>
           <div className="mt-2 text-sm text-gray-600">
             <TrendingUp className="inline h-4 w-4 mr-1 text-green-500" />
-            <span className="text-green-500 font-medium">8%</span> comparado ao mês passado
+            Capital em produtos
           </div>
         </CardContent>
       </Card>

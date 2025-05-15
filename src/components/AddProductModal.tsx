@@ -33,6 +33,7 @@ const AddProductModal = ({ isOpen, onClose }: AddProductModalProps) => {
     price: "",
     quantity: ""
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const categories = [
     "Eletrônicos", 
@@ -52,7 +53,7 @@ const AddProductModal = ({ isOpen, onClose }: AddProductModalProps) => {
     setFormData(prev => ({ ...prev, category: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validação básica
@@ -75,19 +76,27 @@ const AddProductModal = ({ isOpen, onClose }: AddProductModalProps) => {
       return;
     }
 
-    // Adicionar produto
-    addProduct({
-      id: Date.now().toString(),
-      name: formData.name,
-      category: formData.category,
-      price,
-      quantity
-    });
+    try {
+      setIsSubmitting(true);
+      
+      // Adicionar produto
+      await addProduct({
+        name: formData.name,
+        category: formData.category,
+        price,
+        quantity
+      });
 
-    // Limpar formulário e fechar modal
-    setFormData({ name: "", category: "", price: "", quantity: "" });
-    toast.success("Produto adicionado com sucesso");
-    onClose();
+      // Limpar formulário e fechar modal
+      setFormData({ name: "", category: "", price: "", quantity: "" });
+      toast.success("Produto adicionado com sucesso");
+      onClose();
+    } catch (error) {
+      console.error("Erro ao adicionar produto:", error);
+      toast.error("Não foi possível adicionar o produto");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -150,8 +159,12 @@ const AddProductModal = ({ isOpen, onClose }: AddProductModalProps) => {
           </div>
           
           <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit">Adicionar Produto</Button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Adicionando..." : "Adicionar Produto"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

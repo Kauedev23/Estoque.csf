@@ -1,47 +1,90 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Package, ArrowLeft, Filter, Calendar } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
+  Package, 
+  ArrowLeft, 
+  Search, 
+  RefreshCw,
+  ArrowUpCircle,
+  ArrowDownCircle
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-// Dados fictícios de histórico para demonstração
-const movimentacoes = [
-  { id: 1, data: "15/05/2025", produto: "Monitor LED 24\"", tipo: "entrada", quantidade: 10, responsavel: "João Silva" },
-  { id: 2, data: "15/05/2025", produto: "Teclado Mecânico", tipo: "saida", quantidade: 2, responsavel: "Maria Oliveira" },
-  { id: 3, data: "15/05/2025", produto: "Webcam HD", tipo: "entrada", quantidade: 5, responsavel: "João Silva" },
-  { id: 4, data: "14/05/2025", produto: "Mouse Gamer", tipo: "saida", quantidade: 1, responsavel: "Carlos Santos" },
-  { id: 5, data: "14/05/2025", produto: "Cadeira de Escritório", tipo: "entrada", quantidade: 3, responsavel: "Ana Lima" },
-  { id: 6, data: "13/05/2025", produto: "Fone de Ouvido", tipo: "saida", quantidade: 2, responsavel: "Pedro Costa" },
-  { id: 7, data: "12/05/2025", produto: "Monitor LED 24\"", tipo: "saida", quantidade: 1, responsavel: "Maria Oliveira" },
-  { id: 8, data: "11/05/2025", produto: "Teclado Mecânico", tipo: "entrada", quantidade: 5, responsavel: "João Silva" },
-  { id: 9, data: "10/05/2025", produto: "Mouse Gamer", tipo: "entrada", quantidade: 3, responsavel: "Ana Lima" },
-  { id: 10, data: "09/05/2025", produto: "Webcam HD", tipo: "saida", quantidade: 2, responsavel: "Carlos Santos" },
-];
+interface Movement {
+  id: string;
+  product_id: string;
+  quantity_change: number;
+  movement_type: string;
+  notes: string | null;
+  created_at: string;
+  product: {
+    name: string;
+    category: string;
+  };
+}
 
 const Historico = () => {
-  const [filtroTipo, setFiltroTipo] = useState<string>("");
-  const [busca, setBusca] = useState<string>("");
+  const [movements, setMovements] = useState<Movement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Aplicar filtros
-  const movimentacoesFiltradas = movimentacoes.filter(mov => {
-    const matchTipo = filtroTipo ? mov.tipo === filtroTipo : true;
-    const matchBusca = busca 
-      ? mov.produto.toLowerCase().includes(busca.toLowerCase()) || 
-        mov.responsavel.toLowerCase().includes(busca.toLowerCase())
-      : true;
-    return matchTipo && matchBusca;
+  const loadMovements = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('inventory_movements')
+        .select(`
+          *,
+          product:product_id (
+            name,
+            category
+          )
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        throw error;
+      }
+
+      setMovements(data || []);
+    } catch (err: any) {
+      console.error("Erro ao carregar movimentações:", err);
+      toast.error('Erro ao carregar histórico de movimentações');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMovements();
+  }, []);
+
+  const filteredMovements = movements.filter(movement => {
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      movement.product?.name?.toLowerCase().includes(searchLower) ||
+      movement.product?.category?.toLowerCase().includes(searchLower) ||
+      movement.notes?.toLowerCase().includes(searchLower) ||
+      movement.movement_type.toLowerCase().includes(searchLower)
+    );
   });
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return format(new Date(dateStr), "dd 'de' MMMM', às' HH:mm", { locale: ptBR });
+    } catch (e) {
+      return dateStr;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -51,86 +94,102 @@ const Historico = () => {
             <Package className="h-6 w-6 text-blue-600" />
             <h1 className="text-xl font-bold text-gray-900">EstoqueSimples</h1>
           </div>
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/" className="flex items-center">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar para o Dashboard
-            </Link>
-          </Button>
+          <div>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/" className="flex items-center">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Voltar ao Painel
+              </Link>
+            </Button>
+          </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-6">Histórico de Movimentações</h1>
-
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center">
-              <Filter className="h-4 w-4 mr-2" />
-              Filtros
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="w-full md:w-1/3">
-                <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos os tipos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Todos os tipos</SelectItem>
-                    <SelectItem value="entrada">Entrada</SelectItem>
-                    <SelectItem value="saida">Saída</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="w-full md:w-2/3 relative">
-                <Input
-                  placeholder="Buscar por produto ou responsável..."
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  className="w-full"
-                />
-              </div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-semibold text-gray-900">Histórico de Movimentações</h2>
+          <div className="flex gap-4">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Buscar movimentações..."
+                className="pl-8 w-64"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
-          </CardContent>
-        </Card>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => loadMovements()} 
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </div>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[100px]">Data</TableHead>
+                  <TableHead>Data/Hora</TableHead>
                   <TableHead>Produto</TableHead>
                   <TableHead>Tipo</TableHead>
-                  <TableHead className="text-center">Quantidade</TableHead>
-                  <TableHead>Responsável</TableHead>
+                  <TableHead className="text-right">Quantidade</TableHead>
+                  <TableHead>Observações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {movimentacoesFiltradas.length === 0 ? (
+                {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                      <Calendar className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-                      <p>Nenhuma movimentação encontrada</p>
+                    <TableCell colSpan={5} className="text-center py-10">
+                      <div className="flex flex-col items-center justify-center">
+                        <RefreshCw className="h-8 w-8 text-blue-600 animate-spin mb-2" />
+                        <p className="text-gray-500">Carregando movimentações...</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : filteredMovements.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-10 text-gray-500">
+                      {searchQuery ? (
+                        <p>Nenhuma movimentação encontrada para "{searchQuery}"</p>
+                      ) : (
+                        <p>Nenhuma movimentação de estoque registrada</p>
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  movimentacoesFiltradas.map((mov) => (
-                    <TableRow key={mov.id}>
-                      <TableCell className="font-medium">{mov.data}</TableCell>
-                      <TableCell>{mov.produto}</TableCell>
+                  filteredMovements.map((movement) => (
+                    <TableRow key={movement.id}>
+                      <TableCell className="whitespace-nowrap">
+                        {formatDate(movement.created_at)}
+                      </TableCell>
                       <TableCell>
-                        {mov.tipo === "entrada" ? (
-                          <Badge className="bg-green-500">Entrada</Badge>
+                        <div>
+                          <div className="font-medium">{movement.product?.name || "Produto removido"}</div>
+                          <div className="text-sm text-gray-500">{movement.product?.category || "-"}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {movement.movement_type === 'entrada' ? (
+                          <Badge className="bg-green-100 text-green-800 border-green-200">
+                            <ArrowUpCircle className="h-3 w-3 mr-1" /> Entrada
+                          </Badge>
                         ) : (
-                          <Badge className="bg-red-500">Saída</Badge>
+                          <Badge className="bg-red-100 text-red-800 border-red-200">
+                            <ArrowDownCircle className="h-3 w-3 mr-1" /> Saída
+                          </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-center">{mov.quantidade}</TableCell>
-                      <TableCell>{mov.responsavel}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {movement.quantity_change > 0 ? `+${movement.quantity_change}` : movement.quantity_change}
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate">
+                        {movement.notes || "-"}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}

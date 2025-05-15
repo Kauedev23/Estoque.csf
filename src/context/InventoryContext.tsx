@@ -1,109 +1,187 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-
-interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  quantity: number;
-}
+import { supabase } from "@/integrations/supabase/client";
+import { Product } from "@/types/supabase";
+import { toast } from "sonner";
 
 interface InventoryContextType {
   products: Product[];
-  addProduct: (product: Product) => void;
-  updateProduct: (product: Product) => void;
-  removeProduct: (id: string) => void;
-  updateQuantity: (id: string, newQuantity: number) => void;
+  loading: boolean;
+  error: string | null;
+  addProduct: (product: Omit<Product, "id" | "created_at" | "updated_at">) => Promise<void>;
+  updateProduct: (product: Product) => Promise<void>;
+  removeProduct: (id: string) => Promise<void>;
+  updateQuantity: (id: string, newQuantity: number) => Promise<void>;
+  refreshProducts: () => Promise<void>;
 }
-
-// Produtos iniciais para demonstração
-const initialProducts: Product[] = [
-  {
-    id: "1",
-    name: "Monitor LED 24\"",
-    category: "Eletrônicos",
-    price: 899.90,
-    quantity: 15
-  },
-  {
-    id: "2",
-    name: "Teclado Mecânico",
-    category: "Informática",
-    price: 349.90,
-    quantity: 3
-  },
-  {
-    id: "3",
-    name: "Mouse Gamer",
-    category: "Informática",
-    price: 129.90,
-    quantity: 2
-  },
-  {
-    id: "4",
-    name: "Webcam HD",
-    category: "Eletrônicos",
-    price: 199.90,
-    quantity: 8
-  },
-  {
-    id: "5",
-    name: "Fone de Ouvido",
-    category: "Eletrônicos",
-    price: 149.90,
-    quantity: 4
-  },
-  {
-    id: "6",
-    name: "Cadeira de Escritório",
-    category: "Móveis",
-    price: 599.90,
-    quantity: 0
-  }
-];
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
 
 export const InventoryProvider = ({ children }: { children: ReactNode }) => {
-  // Carregar produtos do localStorage ou usar os iniciais
-  const [products, setProducts] = useState<Product[]>(() => {
-    const savedProducts = localStorage.getItem("inventory-products");
-    return savedProducts ? JSON.parse(savedProducts) : initialProducts;
-  });
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Salvar produtos no localStorage sempre que mudar
+  // Carregar produtos do Supabase ao montar o componente
   useEffect(() => {
-    localStorage.setItem("inventory-products", JSON.stringify(products));
-  }, [products]);
+    refreshProducts();
+  }, []);
 
-  const addProduct = (product: Product) => {
-    setProducts([...products, product]);
+  const refreshProducts = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('name');
+      
+      if (error) {
+        throw error;
+      }
+
+      setProducts(data);
+      setError(null);
+    } catch (err: any) {
+      console.error("Erro ao carregar produtos:", err);
+      setError(err.message || 'Erro ao carregar produtos');
+      toast.error('Erro ao carregar produtos');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateProduct = (updatedProduct: Product) => {
-    setProducts(products.map(product => 
-      product.id === updatedProduct.id ? updatedProduct : product
-    ));
+  const addProduct = async (productData: Omit<Product, "id" | "created_at" | "updated_at">) => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .insert([productData])
+        .select();
+      
+      if (error) {
+        throw error;
+      }
+
+      if (data && data[0]) {
+        setProducts(prevProducts => [...prevProducts, data[0]]);
+      }
+      
+      return;
+    } catch (err: any) {
+      console.error("Erro ao adicionar produto:", err);
+      toast.error('Erro ao adicionar produto');
+      throw err;
+    }
   };
 
-  const removeProduct = (id: string) => {
-    setProducts(products.filter(product => product.id !== id));
+  const updateProduct = async (product: Product) => {
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ 
+          name: product.name,
+          category: product.category,
+          price: product.price,
+          quantity: product.quantity,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', product.id);
+      
+      if (error) {
+        throw error;
+      }
+
+      setProducts(products.map(p => 
+        p.id === product.id ? { ...p, ...product, updated_at: new Date().toISOString() } : p
+      ));
+    } catch (err: any) {
+      console.error("Erro ao atualizar produto:", err);
+      toast.error('Erro ao atualizar produto');
+      throw err;
+    }
   };
 
-  const updateQuantity = (id: string, newQuantity: number) => {
-    setProducts(products.map(product => 
-      product.id === id ? { ...product, quantity: newQuantity } : product
-    ));
+  const removeProduct = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        throw error;
+      }
+
+      setProducts(products.filter(product => product.id !== id));
+    } catch (err: any) {
+      console.error("Erro ao remover produto:", err);
+      toast.error('Erro ao remover produto');
+      throw err;
+    }
+  };
+
+  const updateQuantity = async (id: string, newQuantity: number) => {
+    try {
+      // Buscar produto para fazer o registro da movimentação
+      const product = products.find(p => p.id === id);
+      if (!product) {
+        throw new Error("Produto não encontrado");
+      }
+      
+      // Calcular a alteração na quantidade
+      const quantityChange = newQuantity - product.quantity;
+      
+      // Atualizar a quantidade no produto
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({ 
+          quantity: newQuantity,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Registrar a movimentação no histórico
+      if (quantityChange !== 0) {
+        const { error: movementError } = await supabase
+          .from('inventory_movements')
+          .insert([{
+            product_id: id,
+            quantity_change: quantityChange,
+            movement_type: quantityChange > 0 ? 'entrada' : 'saída',
+            notes: `Ajuste manual de estoque: ${quantityChange > 0 ? '+' : ''}${quantityChange} unidades`
+          }]);
+        
+        if (movementError) {
+          console.error("Erro ao registrar movimentação:", movementError);
+          toast.error('Erro ao registrar movimentação');
+        }
+      }
+
+      setProducts(products.map(product => 
+        product.id === id 
+          ? { ...product, quantity: newQuantity, updated_at: new Date().toISOString() } 
+          : product
+      ));
+    } catch (err: any) {
+      console.error("Erro ao atualizar quantidade:", err);
+      toast.error('Erro ao atualizar quantidade');
+      throw err;
+    }
   };
 
   return (
     <InventoryContext.Provider value={{ 
       products, 
+      loading,
+      error,
       addProduct, 
       updateProduct, 
       removeProduct,
-      updateQuantity
+      updateQuantity,
+      refreshProducts
     }}>
       {children}
     </InventoryContext.Provider>
