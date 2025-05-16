@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { supabase } from "@/integrations/supabase/client";
 import { Product } from "@/types/supabase";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 interface InventoryContextType {
   products: Product[];
@@ -21,11 +22,14 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
 
-  // Carregar produtos do Supabase ao montar o componente
+  // Carregar produtos do Supabase quando o usuário estiver autenticado
   useEffect(() => {
-    refreshProducts();
-  }, []);
+    if (user) {
+      refreshProducts();
+    }
+  }, [user]);
 
   const refreshProducts = async () => {
     try {
@@ -82,6 +86,10 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
           category: product.category,
           price: product.price,
           quantity: product.quantity,
+          brand: product.brand,
+          model: product.model,
+          serial_number: product.serial_number,
+          status: product.status,
           updated_at: new Date().toISOString()
         })
         .eq('id', product.id);
@@ -91,7 +99,7 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
       }
 
       setProducts(products.map(p => 
-        p.id === product.id ? { ...p, ...product, updated_at: new Date().toISOString() } : p
+        p.id === product.id ? { ...product, updated_at: new Date().toISOString() } : p
       ));
     } catch (err: any) {
       console.error("Erro ao atualizar produto:", err);
@@ -151,7 +159,7 @@ export const InventoryProvider = ({ children }: { children: ReactNode }) => {
             product_id: id,
             quantity_change: quantityChange,
             movement_type: quantityChange > 0 ? 'entrada' : 'saída',
-            notes: `Ajuste manual de estoque: ${quantityChange > 0 ? '+' : ''}${quantityChange} unidades`
+            notes: `Ajuste de estoque: ${quantityChange > 0 ? '+' : ''}${quantityChange} unidades`
           }]);
         
         if (movementError) {

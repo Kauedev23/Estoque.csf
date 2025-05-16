@@ -1,99 +1,95 @@
 
 import { useState } from "react";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
   DialogTitle,
-  DialogFooter
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { 
+import { useInventory } from "@/context/InventoryContext";
+import { toast } from "sonner";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
 } from "@/components/ui/select";
-import { useInventory } from "@/context/InventoryContext";
-import { toast } from "sonner";
+
+const formSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório"),
+  category: z.string().min(1, "Categoria é obrigatória"),
+  price: z.coerce.number().positive("Preço deve ser positivo"),
+  quantity: z.coerce.number().nonnegative("Quantidade deve ser 0 ou positiva"),
+  brand: z.string().optional(),
+  model: z.string().optional(),
+  serial_number: z.string().optional(),
+  status: z.string().optional(),
+});
 
 interface AddProductModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const statusOptions = [
+  { value: "available", label: "Disponível" },
+  { value: "in_use", label: "Em Uso" },
+  { value: "maintenance", label: "Manutenção" },
+  { value: "discarded", label: "Descartado" },
+];
+
 const AddProductModal = ({ isOpen, onClose }: AddProductModalProps) => {
   const { addProduct } = useInventory();
-  const [formData, setFormData] = useState({
-    name: "",
-    category: "",
-    price: "",
-    quantity: ""
-  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const categories = [
-    "Eletrônicos", 
-    "Informática", 
-    "Escritório", 
-    "Móveis", 
-    "Papelaria",
-    "Outros"
-  ];
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: "",
+      category: "",
+      price: 0,
+      quantity: 1,
+      brand: "",
+      model: "",
+      serial_number: "",
+      status: "available",
+    },
+  });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSelectChange = (value: string) => {
-    setFormData(prev => ({ ...prev, category: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validação básica
-    if (!formData.name.trim() || !formData.category || !formData.price || !formData.quantity) {
-      toast.error("Por favor, preencha todos os campos");
-      return;
-    }
-
-    // Converter preço e quantidade para números
-    const price = parseFloat(formData.price);
-    const quantity = parseInt(formData.quantity);
-
-    if (isNaN(price) || price <= 0) {
-      toast.error("Por favor, insira um preço válido");
-      return;
-    }
-
-    if (isNaN(quantity) || quantity < 0) {
-      toast.error("Por favor, insira uma quantidade válida");
-      return;
-    }
-
+  const handleSubmit = async (values: z.infer<typeof formSchema>) => {
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
-      
-      // Adicionar produto
       await addProduct({
-        name: formData.name,
-        category: formData.category,
-        price,
-        quantity
+        name: values.name,
+        category: values.category,
+        price: values.price,
+        quantity: values.quantity,
+        brand: values.brand || null,
+        model: values.model || null,
+        serial_number: values.serial_number || null,
+        status: values.status || "available",
       });
-
-      // Limpar formulário e fechar modal
-      setFormData({ name: "", category: "", price: "", quantity: "" });
       toast.success("Produto adicionado com sucesso");
+      form.reset();
       onClose();
     } catch (error) {
       console.error("Erro ao adicionar produto:", error);
-      toast.error("Não foi possível adicionar o produto");
+      toast.error("Erro ao adicionar produto");
     } finally {
       setIsSubmitting(false);
     }
@@ -101,72 +97,150 @@ const AddProductModal = ({ isOpen, onClose }: AddProductModalProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Adicionar Novo Produto</DialogTitle>
+          <DialogTitle>Adicionar Novo Item de TI</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
-          <div className="grid w-full items-center gap-2">
-            <Label htmlFor="name">Nome do Produto</Label>
-            <Input
-              id="name"
-              name="name"
-              placeholder="Nome do produto"
-              value={formData.name}
-              onChange={handleChange}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Monitor 24 polegadas" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Categoria</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Monitor, Teclado, Mouse..." />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="brand"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Marca</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Dell, HP, Logitech..." />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="model"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Modelo</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="P2419H, G203..." />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="serial_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Número de Série</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="ABC123456789" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          
-          <div className="grid w-full items-center gap-2">
-            <Label htmlFor="category">Categoria</Label>
-            <Select onValueChange={handleSelectChange} value={formData.category}>
-              <SelectTrigger id="category">
-                <SelectValue placeholder="Selecione uma categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map(category => (
-                  <SelectItem key={category} value={category}>{category}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="grid w-full items-center gap-2">
-            <Label htmlFor="price">Preço (R$)</Label>
-            <Input
-              id="price"
-              name="price"
-              placeholder="0,00"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.price}
-              onChange={handleChange}
-            />
-          </div>
-          
-          <div className="grid w-full items-center gap-2">
-            <Label htmlFor="quantity">Quantidade</Label>
-            <Input
-              id="quantity"
-              name="quantity"
-              placeholder="0"
-              type="number"
-              min="0"
-              value={formData.quantity}
-              onChange={handleChange}
-            />
-          </div>
-          
-          <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Adicionando..." : "Adicionar Produto"}
-            </Button>
-          </DialogFooter>
-        </form>
+
+            <div className="grid grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Preço (R$)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="quantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quantidade</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecionar" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {statusOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Adicionando..." : "Adicionar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

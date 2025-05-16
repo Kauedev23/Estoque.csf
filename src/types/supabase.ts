@@ -7,6 +7,10 @@ export interface Product {
   quantity: number;
   created_at: string;
   updated_at: string;
+  brand: string | null;
+  model: string | null;
+  serial_number: string | null;
+  status: string | null;
 }
 
 export interface InventoryMovement {
